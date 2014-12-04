@@ -6,4 +6,3 @@ pom.xml
 .lein-*
 
 /resources/public/cljs.js
-/resources/public/index.html

@@ -5,7 +5,6 @@
                  [crate "0.2.5"]
                  [domina "1.0.3"]]
   :plugins [[lein-cljsbuild "1.0.3"]]
-  :hooks [leiningen.cljsbuild]
   :cljsbuild {:builds {:dev {:id "dev"
                              :source-paths ["src/cljs" "src/dev"]
                              :compiler {:output-to "resources/public/cljs.js"

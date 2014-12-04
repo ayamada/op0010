@@ -4,4 +4,9 @@ TODO
 
 
 
+## How to deploy release version
+
+~~~
+lein cljsbuild clean && lein cljsbuild once prod
+~~~
 

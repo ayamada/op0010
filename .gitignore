@@ -1,0 +1,9 @@
+pom.xml
+*jar
+/lib/
+/classes/
+/target
+.lein-*
+
+/resources/public/cljs.js
+/resources/public/index.html

@@ -1,12 +1,5 @@
-# op0010
+これは [Clojure Advent Calendar 2014](http://qiita.com/advent-calendar/2014/clojure) の九日目の記事のソース一式です。
 
-TODO
+記事本体は [clojure-advent-calendar-2014.md](https://github.com/ayamada/op0010/blob/master/clojure-advent-calendar-2014.md) にあります。
 
-
-
-## How to deploy release version
-
-~~~
-lein cljsbuild clean && lein cljsbuild once prod
-~~~
 

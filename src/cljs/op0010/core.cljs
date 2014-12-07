@@ -21,6 +21,41 @@
 
 
 
+;;;
+;;; game data
+;;;
+
+;;; これをシリアライズしてwrite/readすれば、セーブとロードが実現できる
+(def ^:private the-game-data (atom {}))
+(defn- init-game-data! []
+  (reset! @the-game-data {:flags #{}
+                          :inventory []
+                          :player {:hp 10
+                                   :hp-max 10
+                                   :atk 5
+                                   :exp 0
+                                   :lv 1
+                                   }
+                          :floor 1
+                          :step 0
+                          }))
+(defn- flag [k] (get-in @the-game-data [:flags k]))
+(defn- flag-on! [k]
+  (swap! the-game-data #(assoc % :flags (conj (:flags %) k))))
+(defn- flag-off! [k]
+  (swap! the-game-data #(assoc % :flags (disj (:flags %) k))))
+(defn- has-inventory? [k]
+  ;; TODO
+  nil)
+(defn- add-inventory! [k]
+  ;; TODO
+  nil)
+(defn- consume-inventory! [k]
+  ;; TODO
+  nil)
+
+
+
 
 ;;;
 ;;; image
@@ -28,8 +63,9 @@
 
 (def ^:private current-img (atom nil))
 (defn get-img [] @current-img)
-(defn set-img! [filename] (reset! current-img (str "assets/img/" filename)))
-(defn hide-img! [] (reset! current-img nil))
+(defn set-img! [filename]
+  (reset! current-img (and filename (str "assets/img/" filename))))
+(defn hide-img! [] (set-img! nil))
 (defn call-with-img [filename body-fn]
   ;; NB: 今回は「1ファイル」という制約があるので、マクロが使えない…
   (let [old-img (get-img)
@@ -47,11 +83,11 @@
 
 (def ^:private current-title (atom ""))
 (defn get-title [] @current-title)
-(defn set-title! [t] (reset! current-title t))
-(defn call-with-title [filename body-fn]
+(defn set-title! [title] (reset! current-title title))
+(defn call-with-title [title body-fn]
   ;; NB: 今回は「1ファイル」という制約があるので、マクロが使えない…
   (let [old-title (get-title)
-        _ (set-title! filename)
+        _ (set-title! title)
         r (body-fn)
         _ (set-title! old-title)]
     r))
@@ -79,7 +115,7 @@
             :closeOnConfirm false ; 今回はダイアログを閉じる事はない
             :closeOnCancel false ; 今回はダイアログを閉じる事はない
             :imageUrl (get-img)
-            :imageSize nil ; 画像サイズは原寸表示とする
+            :imageSize nil ; これは上手く動作しないようだ
             :timer nil
             }
            m)))
@@ -96,7 +132,7 @@
 (defn choose$ "選択肢表示" [msg & [label-yes label-no]]
   (swal$ {:text msg
           :showCancelButton true
-          :confirmButtonText (or label-yes "はい")
+          :confirmButtonText (or label-yes " はい ")
           :cancelButtonText (or label-no "いいえ")}))
 
 
@@ -114,31 +150,37 @@
     "はじめに"
     ;; NB: urlをリンク化したいが、sweetAlertではできないようだ
     #(msg$ (str "これは Clojure Advent Calendar 2014 九日目の記事"
-                "である『core.asyncと押し入れクエスト』に付属する"
-                "ブラウザゲーム『押し入れクエスト』です。\n"
+                "である『core.asyncとおしいれクエスト』に付属する"
+                "ブラウザゲーム『おしいれクエスト』です。\n"
                 "\n"
                 "該当記事の本体は " article-url " にあります。\n"
                 "\n")
-           "『押し入れクエスト』を開始する")))
+           "『おしいれクエスト』を開始する")))
 
 (defn- opening-demo$ "オープニングデモ" []
-  (go
-    ;; TODO: 絵をつける
-    (<! (msg$ "TODO: あとでちゃんとしたOPつくります…" "プレイ開始"))
-    ;(<! (msg$ ""))
-    ;(<! (msg$ ""))
-    ;(<! (msg$ ""))
-    ;(<! (msg$ ""))
-    ;; TODO
-    true))
+  (call-with-img
+    nil ; TODO: 絵をつける
+    #(go
+       ;(<! (msg$ "ぼくは、"))
+       (<! (msg$ "TODO: あとでちゃんとしたOPつくります…" "プレイ開始"))
+       ;(<! (msg$ ""))
+       ;(<! (msg$ ""))
+       ;(<! (msg$ ""))
+       ;(<! (msg$ ""))
+       ;; TODO
+       true)))
 
 (defn- ending$ []
   (go
-    (hide-img!)
+    (set-img! "oshimai.png")
     (set-title! "おしまい")
     (<! (swal$ {:text "おわってしまった"
                 :confirmButtonText "完"
                 :closeOnConfirm true}))))
+
+(defn- is-game-finished? []
+  ;; TODO
+  true)
 
 ;;;
 ;;; main
@@ -150,11 +192,15 @@
     (<! (boot-msg$))
     (when (<! (choose$ "オープニングデモを見ますか？"))
       (<! (opening-demo$)))
-    ;; TODO
-    (<! (msg$ "hi"))
-    (<! (msg$ "there"))
-    (<! (msg$ "test2"))
-    (<! (msg$ "test3"))
+    (while (not (is-game-finished?))
+      ;; TODO: 開始直後はチュートリアル的なものを入れたい(フラグで判定する)
+      ;; TODO
+      ;; TODO: このループ内で、まずマス目イベント実行を呼び、その後でステータスを見て回復するか聞いたり、HP0でゲームオーバーかの判定をしたりする
+      (<! (msg$ "hi"))
+      (<! (msg$ "there"))
+      (<! (msg$ "test2"))
+      (<! (msg$ "test3"))
+      )
     (<! (ending$))))
 
 

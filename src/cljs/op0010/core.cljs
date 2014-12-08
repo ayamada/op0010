@@ -16,6 +16,11 @@
 ;;;;     手を加えないと :foreign-libs での読み込みはできない
 
 
+
+;;; TODO: 開始直後はチュートリアル的なものを入れたい(フラグで判定する)
+
+
+
 (def ^:private article-url "https://github.com/ayamada/op0010/blob/master/clojure-advent-calendar-2014.md")
 
 
@@ -25,20 +30,22 @@
 ;;; game data
 ;;;
 
+
 ;;; これをシリアライズしてwrite/readすれば、セーブとロードが実現できる
 (def ^:private the-game-data (atom {}))
 (defn- init-game-data! []
-  (reset! @the-game-data {:flags #{}
-                          :inventory []
-                          :player {:hp 10
-                                   :hp-max 10
-                                   :atk 5
-                                   :exp 0
-                                   :lv 1
-                                   }
-                          :floor 1
-                          :step 0
-                          }))
+  (reset! the-game-data {:flags #{}
+                         :inventory []
+                         :player {:hp 10
+                                  :hp-max 10
+                                  :atk 5
+                                  :exp 0
+                                  :lv 1
+                                  }
+                         :floor 1
+                         :step 0
+                         }))
+(defn- get-data [k & [fallback]] (get @the-game-data k fallback))
 (defn- flag [k] (get-in @the-game-data [:flags k]))
 (defn- flag-on! [k]
   (swap! the-game-data #(assoc % :flags (conj (:flags %) k))))
@@ -53,6 +60,10 @@
 (defn- consume-inventory! [k]
   ;; TODO
   nil)
+(defn- get-player-data [k & [fallback]]
+  (get-in @the-game-data [:player k] fallback))
+(defn- set-player-data! [k v]
+  (swap! the-game-data assoc-in [:player k] v))
 
 
 
@@ -66,19 +77,13 @@
 (defn set-img! [filename]
   (reset! current-img (and filename (str "assets/img/" filename))))
 (defn hide-img! [] (set-img! nil))
-(defn call-with-img [filename body-fn]
-  ;; NB: 今回は「1ファイル」という制約があるので、マクロが使えない…
-  (let [old-img (get-img)
-        _ (set-img! filename)
-        r (body-fn)
-        _ (set-img! old-img)]
-    r))
+
 
 
 
 
 ;;;
-;;; status
+;;; title(display status)
 ;;;
 
 (def ^:private current-title (atom ""))
@@ -91,8 +96,17 @@
         r (body-fn)
         _ (set-title! old-title)]
     r))
-;;; TODO: titleはステータス表示欄として利用する予定なので、それ用のユーティリティ関数をもっと用意する
 
+
+(defn- update-title-status! []
+  (let [hp (get-player-data :hp)
+        hp-max (get-player-data :hp-max)
+        new-label (str
+                    "HP: " hp "/" hp-max " "
+                    ;; TODO
+                    ""
+                    )]
+    (set-title! new-label)))
 
 
 
@@ -137,13 +151,73 @@
 
 
 ;;;
+;;; game events
+;;;
+
+;;; 「ゲームイベント」はとりあえずここに登録する。keyはkeyword、valはfn。
+(def ^:private all-game-events (atom {}))
+
+;;; フロア毎にゲームイベントテーブルは違う。keyはフロア値、valはテーブル本体。
+(def ^:private the-game-event-tables (atom {}))
+
+;;; NB: 本当は関数ではなくマクロにしたい
+(defn- register-game-event! [k f]
+  (swap! all-game-events assoc k f))
+(defn- register-game-event-table! [floor static dynamic]
+  (swap! the-game-event-tables assoc floor {:static static, :dynamic dynamic}))
+
+(defn- invoke-event$ [k]
+  (if-let [f (get @all-game-events k)]
+    (f)
+    (msg$ (str "エラー: " k " に対応するイベントは定義されていません"))))
+
+(register-game-event!
+  :normal-1-b1f$
+  #(msg$ "探検している"))
+(register-game-event!
+  :normal-2-b1f$
+  #(msg$ "ここは薄暗い"))
+(register-game-event!
+  :normal-3-b1f$
+  #(msg$ "しめっている"))
+
+(register-game-event-table!
+  ;; フロア番号
+  1
+  ;; ステップ数固定のイベント(あれば)
+  {}
+  ;; ランダムイベントのテーブル(rand-nthで選択される)
+  [:normal-1-b1f$ :normal-2-b1f$ :normal-3-b1f$])
+
+
+
+
+
+;;; NB: この関数自体はgoブロックを持たないが、返り値としてchanを返す
+(defn- invoke-step-event$ "現在位置のイベントを実行" []
+  (let [current-floor (get-data :floor)
+        current-step (get-data :step)
+        event-table (get @the-game-event-tables current-floor)]
+    ;; TODO: あとで、fallbackなフロアを用意する等、とにかくエラーにはならないようにしたい
+    (when-not event-table
+      (js/alert "エラー: フロアに対応するデータがありません"))
+    (if-let [static-event-key (get (:static event-table) current-step)]
+      (invoke-event$ static-event-key)
+      (if-let [dynamic-event-key (rand-nth (:dynamic event-table))]
+        (invoke-event$ dynamic-event-key)
+        ;; TODO: ここも上記同様、あとでとにかくエラーにならないようにする
+        (msg$ "エラー: イベントが空です")))))
+
+
+
+;;;
 ;;; fns
 ;;;
 
 (defn- init! "ゲーム全体を初期化" []
   (hide-img!)
   (set-title! "")
-  nil)
+  (init-game-data!))
 
 (defn- boot-msg$ "起動画面" []
   (call-with-title
@@ -158,17 +232,17 @@
            "『おしいれクエスト』を開始する")))
 
 (defn- opening-demo$ "オープニングデモ" []
-  (call-with-img
-    nil ; TODO: 絵をつける
-    #(go
-       ;(<! (msg$ "ぼくは、"))
-       (<! (msg$ "TODO: あとでちゃんとしたOPつくります…" "プレイ開始"))
-       ;(<! (msg$ ""))
-       ;(<! (msg$ ""))
-       ;(<! (msg$ ""))
-       ;(<! (msg$ ""))
-       ;; TODO
-       true)))
+  (go
+    (set-img! "door2.jpg")
+    (<! (msg$ "ぼくの家には、不思議なおしいれがある。"))
+    (set-img! "closet1.png")
+    (<! (msg$ "今日は、○○を探しにおしいれに入った。"))
+    (set-img! "black.png")
+    (<! (msg$ "そしたら、急におしいれがしまり、開かなくなってしまった。"))
+    (<! (msg$ "おしいれの奥の方はどこまでも続いている。"))
+    (hide-img!)
+    (<! (msg$ "こうして、ぼくの冒険がはじまった！" "プレイ開始"))
+    true))
 
 (defn- ending$ []
   (go
@@ -180,7 +254,19 @@
 
 (defn- is-game-finished? []
   ;; TODO
-  true)
+  nil)
+
+;;; ステータスを見て、必要であれば、各種の処理を行う
+(defn- hoge-status$ []
+  (go
+    ;; TODO
+    (cond
+      ;; - HPが0なら、ゲームオーバー
+      ;; TODO
+      ;; - HPが減っていれば、アイテムを使って回復するかどうか
+      ;; TODO
+      :else nil)))
+
 
 ;;;
 ;;; main
@@ -193,14 +279,16 @@
     (when (<! (choose$ "オープニングデモを見ますか？"))
       (<! (opening-demo$)))
     (while (not (is-game-finished?))
-      ;; TODO: 開始直後はチュートリアル的なものを入れたい(フラグで判定する)
-      ;; TODO
-      ;; TODO: このループ内で、まずマス目イベント実行を呼び、その後でステータスを見て回復するか聞いたり、HP0でゲームオーバーかの判定をしたりする
-      (<! (msg$ "hi"))
-      (<! (msg$ "there"))
-      (<! (msg$ "test2"))
-      (<! (msg$ "test3"))
-      )
+      ;; ステータスチェック
+      (<! (hoge-status$))
+      ;; ステータス更新
+      (update-title-status!)
+      ;; 一歩進む
+      (swap! the-game-data update-in [:step] inc) ; stepが1増える
+      ;; このステップでのイベントを実行
+      (<! (invoke-step-event$))
+      ;; 念の為の無限ループ避け用
+      (<! (async/timeout 1)))
     (<! (ending$))))
 
 

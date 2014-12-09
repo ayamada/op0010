@@ -85,7 +85,8 @@
   (let [hp-max (get-player-data :hp-max)
         new-hp (max 0 (min hp-max (+ (get-player-data :hp) v)))]
     (set-player-data! :varied-hp? vary-flag)
-    (set-player-data! :hp new-hp)))
+    (set-player-data! :hp new-hp)
+    new-hp))
 
 
 
@@ -139,18 +140,17 @@
 
 ;;; 上記のタイトルでは一部のステータスしか表示できない為、
 ;;; 残りのステータスは本文の末尾に付与する形式にする
-(defn- append-current-misc-status [text]
+(defn- append-current-misc-status [& [text]]
   (let [hp (get-player-data :hp)
         hp-max (get-player-data :hp-max)
         lv (get-player-data :lv)
         exp (get-player-data :exp)
         exp-next (get-player-data :exp-next)
         ]
-    (str text "\n\n"
+    (str (or text "") "\n\n"
          "----------------\n"
          "HP: " hp "/" hp-max "\n"
          "LV: " lv " EXP: " exp "/" exp-next "\n"
-         ;; TODO
          ""
          )))
 (def ^:private acms append-current-misc-status)
@@ -262,20 +262,21 @@
                   food (first left)
                   pieces (count (filter (partial = food) foods))]
               (when-not (= hp-max (get-player-data :hp))
-                (when (<! (choose$ (str (item-name food) "を"
-                                        pieces "個持っている。\n"
-                                        "食べる？")))
+                (when (<! (choose$ (acms (str (item-name food) "を"
+                                              pieces "個持っている。\n"
+                                              "食べる？"))))
                   (loop []
                     (if (consume-from-inventory! food)
                       (let [old-hp (get-player-data :hp)
                             pow (inc (rand-int 8))
-                            _ (vary-hp! pow false)
-                            new-hp (get-player-data :hp)
+                            new-hp (vary-hp! pow false)
                             msg (acms (str (item-name food) "を食べた！\n"
                                            "HPが" pow "回復した！"))]
-                        (if (= hp-max new-hp)
+                        (if (or
+                              (= hp-max new-hp)
+                              (= 1 pieces))
                           (<! (msg$ msg "OK"))
-                          (when-not (<! (choose$ msg "OK" "もう一個食べる"))
+                          (when (<! (choose$ msg "もう一個食べる" "もういい"))
                             (recur))))
                       (<! (msg$ (str "もう" (item-name food) "を"
                                      "持ってなかった！")
@@ -283,9 +284,38 @@
                 (recur (rest left))))))))))
 
 
+(defn- check-lvup$ []
+  (go
+    (when (<= (get-player-data :exp-next) (get-player-data :exp))
+      ;; レベルアップ実行
+      (while (<= (get-player-data :exp-next) (get-player-data :exp))
+        (let [exp (get-player-data :exp)
+              exp-next (get-player-data :exp-next)
+              lv (get-player-data :lv)
+              atk (get-player-data :atk)
+              hp (get-player-data :hp)
+              hp-max (get-player-data :hp-max)
+              new-exp (- exp exp-next)
+              new-exp-next (int (* exp-next 1.2))
+              new-lv (inc lv)
+              new-atk (inc atk)
+              new-hp (+ hp lv)
+              new-hp-max (+ hp-max lv)]
+          (set-player-data! :exp new-exp)
+          (set-player-data! :exp-next new-exp-next)
+          (set-player-data! :lv new-lv)
+          (set-player-data! :atk new-atk)
+          (set-player-data! :hp new-hp)
+          (set-player-data! :hp-max new-hp-max)))
+      (let []
+        ;; TODO: HPの増加量等をメッセージに入れる？
+        (<! (msg$ (acms "ぼくはレベルアップした！") "OK"))))))
+
 ;;; ステータスを見て、必要であれば、各種の処理を行う
 (defn- event-by-status$ []
   (go
+    ;; まず先にレベルアップ判定を行う
+    (<! (check-lvup$))
     (let [hp (get-player-data :hp)
           hp-max (get-player-data :hp-max)]
       ;; TODO
@@ -307,23 +337,41 @@
   #(msg$ (str "ここは、おしいれの中の階段を降りてすぐの場所だ。\n"
               "細い通路がずっと先まで続いている。\n"
               "前に進むしかないみたいだ！"
-              )
+              (acms))
          "前進"))
+
+
+(defn- change-bg! [filename]
+  (let [path (str "assets/img/" filename)]
+    (set! js/document.body.style.backgroundImage
+          (str "url(" path ")"))))
+
 
 ;;; TODO: 鍵を持って扉を開いたら、このイベントが起こるようにする？(つまりこれは出口発見イベントではなく、扉イベントの一部になる)
 (register-game-event!
   :goal-1$
   (fn []
     (go
-      (set-img! "exit_b.png")
+      (set-img! "mon01.jpg")
       (if (<! (choose$ (acms (str "これは出口だ！\n"
                                   "ここから外に出られそうだ！"))
                        "脱出する"
                        "無視して前進"))
         (do
-          ;; TODO: cssの背景画像を屋外のものに変更する
+          (change-bg! (rand-nth ["bg_b.jpg"
+                                 "bg_d.jpg"
+                                 "bg_e.jpg"
+                                 "bg_f.jpg"
+                                 "bg_i.jpg"
+                                 "bg_j.jpg"
+                                 "bg_k.jpg"
+                                 "bg_l.jpg"
+                                 "bg_m.jpg"
+                                 ]))
           (flag-on! :game-is-finished)
           (flag-on! :clear-game)
+          (set-title! "")
+          (set-img! "exit_b.png")
           (<! (msg$ (str "長い冒険の末、ついにぼくは"
                          "おしいれから脱出した！\n"
                          "\n"
@@ -349,6 +397,22 @@
           (<! (msg$ (str "階段を上がった。")
                     "前進")))
         true))))
+
+(register-game-event!
+  :stair-up-force$
+  (fn []
+    (go
+      (set-img! "stair_up.png")
+      (<! (msg$ (acms (str "上の階に上がる階段がある。\n"
+                           "\n"
+                           "ここから先には進めないようなので、"
+                           "階段を上がるしかないようだ。")
+                      "階段を上がる")))
+      (swap! the-game-data update-in [:floor] dec)
+      (swap! the-game-data assoc-in [:step] 0)
+      (update-title-status!)
+      (<! (msg$ (str "階段を上がった。")
+                "前進")))))
 
 (register-game-event!
   :stair-down-1$
@@ -390,6 +454,18 @@
                   "痛い！"))
         (<! (event-by-status$))))))
 
+(register-game-event!
+  :damage-2$
+  (fn []
+    (go
+      (let [dam (inc (rand-int 10))]
+        (vary-hp! (- dam) true)
+        (update-title-status!)
+        (<! (msg$ (acms (str "トゲトゲをふんだ！\n"
+                             dam "のダメージを受けた！"))
+                  "痛い！"))
+        (<! (event-by-status$))))))
+
 (defn- gen-item-event [k]
   (fn []
     (let [filename (str (name k) ".png")]
@@ -406,7 +482,7 @@
 
 (def ^:private item-name
   {:banana "バナナ"
-   :orange "オレンジ"
+   :orange "みかん"
    ;; TODO
    })
 
@@ -416,31 +492,180 @@
 (register-game-event! :item-banana$ (gen-item-event :banana))
 
 
+;;;
+;;; battle / enemies
+;;;
+
+(defn- gen-enemy-event [k base-enemy-hp base-enemy-atk & args]
+  ;; TODO: 特殊属性の追加
+  ;; - 逃げる際の挙動
+  ;; - ボス属性
+  ;; - その他
+  (let []
+    (fn []
+      (let [filename (str (name k) ".png")
+            enemy-hp (atom base-enemy-hp)
+            enemy-atk (atom base-enemy-atk)
+            ;; 敵パラメータにゆらぎを持たせる
+            ;; - 20-50%程度ランダムで増減
+            _ (swap! enemy-hp * (+ 0.5 (rand)))
+            _ (swap! enemy-atk * (+ 0.5 (rand)))
+            ;; - たまにHP半減、更にたまにATK倍
+            _ (when (< (rand) 0.2)
+                (swap! enemy-hp * 0.5)
+                (when (< (rand) 0.2)
+                  (swap! enemy-atk * 2)))
+            ;; - たまにATK半減、更にたまにHP倍
+            _ (when (< (rand) 0.2)
+                (swap! enemy-atk * 0.5)
+                (when (< (rand) 0.2)
+                  (swap! enemy-hp * 2)))
+            ;; 整数化
+            _ (swap! enemy-hp max 1)
+            _ (swap! enemy-hp int)
+            _ (swap! enemy-atk int)
+            ;; 強さに応じた経験値を割り当てる
+            enemy-exp (+ @enemy-hp @enemy-atk)]
+        (set-img! filename)
+        (set-player-data! :varied-hp? true)
+        (go-loop [beginning true]
+          (if (<! (choose$ (str (if beginning
+                                  "敵があらわれた！\n"
+                                  "敵とたたかっている！\n")
+                                "敵のHPは" @enemy-hp "ぐらいのようだ。"
+                                (acms))
+                           "たたかう"
+                           "にげる"))
+            (let [dam (inc (rand-int (get-player-data :atk)))
+                  new-enemy-hp (max 0 (- @enemy-hp dam))
+                  msg (str "ぼくは敵をたたいた！\n"
+                           "敵に" dam "のダメージ！")]
+              (reset! enemy-hp new-enemy-hp)
+              (if (pos? new-enemy-hp)
+                (do
+                  (<! (msg$ (acms msg)))
+                  (let [dam (inc (rand-int @enemy-atk))
+                        hp (get-player-data :hp)
+                        new-hp (vary-hp! (- dam) true)
+                        msg (str "敵がぼくを攻撃！\n"
+                                 "いたい！" dam "のダメージ！")]
+                    (if (pos? new-hp)
+                      (do
+                        (<! (msg$ (acms msg)))
+                        (recur false))
+                      (<! (msg$ (acms (str msg "\n"
+                                           "ぼくはまけた！"))
+                                "負け")))))
+                (let [exp (get-player-data :exp)]
+                  (set-player-data! :exp (+ exp enemy-exp))
+                  (set-img! "black.png")
+                  (<! (msg$ (acms (str msg "\n"
+                                       "敵をたおした！\n"
+                                       "経験値を" enemy-exp "得た！"))
+                            "勝ち")))))
+            (let [dam (inc (rand-int (int (/ @enemy-atk 2))))
+                  hp (get-player-data :hp)
+                  new-hp (vary-hp! (- dam) true)
+                  msg (str "ぼくはにげる！\n"
+                           "敵がぼくを攻撃！\n"
+                           "いたい！" dam "のダメージ！")]
+              (if (pos? new-hp)
+                (<! (msg$ (acms (str msg "\n\n"
+                                     "なんとかにげきった！"))))
+                (<! (msg$ (acms (str msg "\n\n"
+                                     "ぼくはやられてしまった！"))
+                          "負け"))))))))))
+
+
+
+;;; TODO: 要バランス調整
+(register-game-event! :enemy-flower-1$ (gen-enemy-event :flower 3 2))
+(register-game-event! :enemy-hdd-1$ (gen-enemy-event :hdd 10 5))
+(register-game-event! :enemy-tsubo-1$ (gen-enemy-event :tsubo 20 10))
+(register-game-event! :enemy-tsubo2-1$ (gen-enemy-event :tsubo2 20 15))
+(register-game-event! :enemy-konro-1$ (gen-enemy-event :konro 30 15))
+(register-game-event! :enemy-eyes-1$ (gen-enemy-event :eyes 40 20))
+(register-game-event! :enemy-eyes-2$ (gen-enemy-event :eyes 100 50))
+
+
 
 ;;;
 ;;; define floors
 ;;;
 
+;;; TODO: 要バランス調整
+
 (register-game-event-table!
   ;; フロア番号
   1
   ;; ステップ数固定のイベント(あれば)
-  {0 :entrance-cell}
+  {0 :entrance-cell ; 最初の一回しか実行されない
+   100 :enemy-eyes-2$ ; 無限稼ぎ防止用
+   }
   ;; ランダムイベントのテーブル(rand-nthで選択される)
   [;:goal-1$ ; for debug
    :stair-down-1$
    :normal-1$ :normal-2$ :normal-3$
    :item-orange$ :item-banana$
    :damage-1$
+   :enemy-flower-1$
    ])
 
 (register-game-event-table!
   2
-  {0 :entrance-cell}
-  [:goal-1$ ; for debug
-   :stair-up-1$ ;:stair-down-1$
+  {;1 :hoge ; TODO: 初回のみフロアの状況描写をするイベントを入れたい
+   }
+  [:stair-up-1$ :stair-down-1$
    :normal-1$ :normal-2$ :normal-3$
+   :item-orange$
    :damage-1$
+   :enemy-flower-1$ :enemy-hdd-1$
+   ])
+
+(register-game-event-table!
+  3
+  {;1 :hoge ; TODO: 初回のみフロアの状況描写をするイベントを入れたい
+   }
+  [:stair-up-1$ :stair-down-1$
+   :normal-1$ :normal-2$ :normal-3$
+   :item-banana$
+   :damage-1$
+   :enemy-hdd-1$
+   :enemy-tsubo-1$ :enemy-tsubo2-1$
+   ])
+
+(register-game-event-table!
+  4
+  {;1 :hoge ; TODO: 初回のみフロアの状況描写をするイベントを入れたい
+   }
+  [:stair-up-1$ :stair-down-1$
+   :normal-1$ :normal-2$ :normal-3$
+   :damage-2$
+   :enemy-tsubo-1$ :enemy-tsubo2-1$
+   ])
+
+(register-game-event-table!
+  5
+  {;1 :hoge ; TODO: 初回のみフロアの状況描写をするイベントを入れたい
+   }
+  [:stair-up-1$ :stair-down-1$
+   :normal-1$ :normal-2$ :normal-3$
+   :damage-2$
+   :item-orange$ :item-banana$
+   :enemy-konro-1$
+   ])
+
+(register-game-event-table!
+  6
+  {;1 :hoge ; TODO: 初回のみフロアの状況描写をするイベントを入れたい
+   50 :goal-1$
+   60 :stair-up-force$ ; ここから先には進めない
+   }
+  [;:stair-up-1$ :stair-down-1$
+   :normal-1$ :normal-2$ :normal-3$
+   :damage-2$
+   :item-orange$ :item-banana$
+   :enemy-eyes-1$
    ])
 
 
@@ -450,13 +675,14 @@
 
 
 ;;;
-;;; fns
+;;; other functions
 ;;;
 
 (defn- init! "ゲーム全体を初期化" []
   (hide-img!)
   (set-title! "")
   (init-game-data!))
+
 
 (defn- boot-msg$ "起動画面" []
   (call-with-title
@@ -468,16 +694,19 @@
                 "\n"
                 "該当記事の本体は " article-url " にあります。\n"
                 "\n"
-                "まだ未完成バージョンです(すみません)。\n"
+                "注意：記事公開期限が迫っていた為、"
+                "ゲームバランスの調整が"
+                "おかしい可能性が非常に高いです。すみません。\n"
                 "\n")
            "『おしいれクエスト』を開始する")))
+
 
 (defn- opening-demo$ "オープニングデモ" []
   (go
     (set-img! "door2.jpg")
     (<! (msg$ "ぼくの家には、奇妙なおしいれがある。"))
     (set-img! "closet1.png")
-    (<! (msg$ "今日は、○○を探しにおしいれに入った。"))
+    (<! (msg$ "今日は、布団を探しにおしいれに入った。"))
     (set-img! "black.png")
     (<! (msg$ "そしたら、急におしいれがしまり、開かなくなってしまった。"))
     (set-img! "stair_down.png")
@@ -491,19 +720,46 @@
     (<! (msg$ "こうして、ぼくの冒険がはじまった！" "プレイ開始"))
     true))
 
+
 (defn- game-over$ []
   (go
     (set-img! "gameover.png")
     (set-title! "ゲームオーバー")
-    (<! (msg$ "おわってしまった" "再挑戦"))))
+    (<! (msg$ "ぼくの探検は、ここでおわってしまった！" "再挑戦"))))
+
+
+(defn- do-tweet! []
+  ;; NB: 今回は1ファイルなので、project.cljからバージョン情報を取れない…
+  (let [ver "0.1.0"
+        game-url "http://vnctst.tir.jp/op0010/"
+        text (str "【 #おしいれクエスト version " ver" 】"
+                  " "
+                  "脱出に成功！"
+                  " ("
+                  "LV:" (get-player-data :lv)
+                  " "
+                  "HP:" (get-player-data :hp) "/" (get-player-data :hp-max)
+                  ") "
+                  game-url)
+        tweet-url (str
+                    "https://twitter.com/intent/tweet?source=webclient&text="
+                    (js/encodeURIComponent text))]
+    (js/window.open tweet-url "_blank")))
 
 (defn- ending$ []
   (go
     (set-img! "oshimai.png")
-    (set-title! "おしまい")
-    (<! (swal$ {:text "おわってしまった"
-                :confirmButtonText "完"
-                :closeOnConfirm true}))))
+    (set-title! "完")
+    (loop []
+      (if (<! (choose$ "クリアおめでとう！" "tweet" "閉じる"))
+        (do
+          (do-tweet!)
+          (recur))
+        (<! (swal$ {:text "クリアおめでとう！"
+                    :confirmButtonText "閉じる"
+                    :timer 1
+                    :closeOnConfirm true}))))))
+
 
 ;;;
 ;;; main

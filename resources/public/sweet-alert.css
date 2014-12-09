@@ -1,4 +1,4 @@
-@import url(//fonts.googleapis.com/css?family=Open+Sans:400,600,700,300);
+/* @import url(//fonts.googleapis.com/css?family=Open+Sans:400,600,700,300); */
 .sweet-overlay {
   background-color: rgba(0, 0, 0, 0.4);
   position: fixed;
@@ -70,11 +70,11 @@
     .sweet-alert button:active {
       background-color: #81ccee; }
     .sweet-alert button.cancel {
-      background-color: #D0D0D0; }
+      background-color: #a0a0a0; }
       .sweet-alert button.cancel:hover {
-        background-color: #c8c8c8; }
+        background-color: #989898; }
       .sweet-alert button.cancel:active {
-        background-color: #b6b6b6; }
+        background-color: #868686; }
       .sweet-alert button.cancel:focus {
         box-shadow: rgba(197, 205, 211, 0.8) 0px 0px 2px, rgba(0, 0, 0, 0.0470588) 0px 0px 0px 1px inset !important; }
     .sweet-alert button::-moz-focus-inner {

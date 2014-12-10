@@ -26,7 +26,7 @@
 (def ^:private heal-threshold (/ 3 4))
 
 ;;; NB: 今回は1ファイルなので、project.cljからバージョン情報を取れない…
-(def ^:private app-version "0.1.1")
+(def ^:private app-version "0.1.2")
 
 
 
@@ -223,6 +223,12 @@
     (f)
     (msg$ (str "エラー: " k " に対応するイベントは定義されていません"))))
 
+(defn- redraw-dynamic-event$ []
+  (let [current-floor (get-data :floor)
+        event-table (get @the-game-event-tables current-floor)
+        dynamic-event-key (rand-nth (:dynamic event-table))]
+    (invoke-event$ dynamic-event-key)))
+
 ;;; NB: この関数自体はgoブロックを持たないが、返り値としてchanを返す
 (defn- invoke-step-event$ "現在位置のイベントを実行" []
   (let [current-floor (get-data :floor)
@@ -342,6 +348,10 @@
               "前に進むしかないみたいだ！"
               (acms))
          "前進"))
+
+
+
+
 
 
 (defn- change-bg! [filename]
@@ -613,6 +623,70 @@
 ;;; define floors
 ;;;
 
+(register-game-event!
+  :landscape-b2f$
+  #(if (flag :landscape-b2f$)
+     (redraw-dynamic-event$)
+     (do
+       (flag-on! :landscape-b2f$)
+       (msg$ (str "上の階から降りてきたぼくは、周囲を見渡した。\n"
+                  "この階も、一つの大きな通路になってるみたいだ。\n"
+                  "時々、どこからともなく機械が動くような不思議な音がする。"
+                  (acms))
+             "前進"))))
+
+
+(register-game-event!
+  :landscape-b3f$
+  #(if (flag :landscape-b3f$)
+     (redraw-dynamic-event$)
+     (do
+       (flag-on! :landscape-b3f$)
+       (msg$ (str "この辺りの空気は微妙にしめっている。\n"
+                  "遠くに、壺のようなものが置いてあるのが見える。"
+                  (acms))
+             "前進"))))
+
+
+(register-game-event!
+  :landscape-b4f$
+  #(if (flag :landscape-b4f$)
+     (redraw-dynamic-event$)
+     (do
+       (flag-on! :landscape-b4f$)
+       (msg$ (str "この辺りの地面はところどころ、トゲトゲになっている。\n"
+                  "うっかりふまないように注意しないと危ない！"
+                  (acms))
+             "前進"))))
+
+
+(register-game-event!
+  :landscape-b5f$
+  #(if (flag :landscape-b5f$)
+     (redraw-dynamic-event$)
+     (do
+       (flag-on! :landscape-b5f$)
+       (msg$ (str "なんだかよく分からない、うなるような音が時々聞こえる。\n"
+                  "ちょっと危険な感じがする。"
+                  (acms))
+             "前進"))))
+
+
+(register-game-event!
+  :landscape-b6f$
+  #(if (flag :landscape-b6f$)
+     (redraw-dynamic-event$)
+     (do
+       (flag-on! :landscape-b6f$)
+       (msg$ (str "ここは完全に一本の通路になっていて、\n"
+                  "他に階段もないみたいだ。\n"
+                  "\n"
+                  "どこからともなく視線を感じる。\n"
+                  "誰かいるんだろうか？"
+                  (acms))
+             "前進"))))
+
+
 ;;; TODO: 要バランス調整
 
 (register-game-event-table!
@@ -633,7 +707,7 @@
 
 (register-game-event-table!
   2
-  {;1 :hoge ; TODO: 初回のみフロアの状況描写をするイベントを入れたい
+  {1 :landscape-b2f$
    }
   [:stair-up-1$ :stair-down-1$
    :normal-1$ :normal-2$ :normal-3$
@@ -644,7 +718,7 @@
 
 (register-game-event-table!
   3
-  {;1 :hoge ; TODO: 初回のみフロアの状況描写をするイベントを入れたい
+  {1 :landscape-b3f$
    }
   [:stair-up-1$ :stair-down-1$
    :normal-1$ :normal-2$ :normal-3$
@@ -656,7 +730,7 @@
 
 (register-game-event-table!
   4
-  {;1 :hoge ; TODO: 初回のみフロアの状況描写をするイベントを入れたい
+  {1 :landscape-b4f$
    }
   [:stair-up-1$ :stair-down-1$
    :normal-1$ :normal-2$ :normal-3$
@@ -666,7 +740,7 @@
 
 (register-game-event-table!
   5
-  {;1 :hoge ; TODO: 初回のみフロアの状況描写をするイベントを入れたい
+  {1 :landscape-b5f$
    }
   [:stair-up-1$ :stair-down-5f$
    :normal-1$ :normal-2$ :normal-3$
@@ -677,7 +751,7 @@
 
 (register-game-event-table!
   6
-  {;1 :hoge ; TODO: 初回のみフロアの状況描写をするイベントを入れたい
+  {1 :landscape-b6f$
    50 :goal-1$
    60 :stair-up-force$ ; ここから先には進めない
    }
@@ -715,9 +789,9 @@
                 "該当記事の本体は " article-url " にあります。\n"
                 "\n"
                 "* version " app-version " 更新内容 *\n"
-                "全体的なバランス調整\n"
-                "イベントを少し追加\n"
-                "\n")
+                "イベントを追加\n"
+                "全体的なバランス調整"
+                )
            "『おしいれクエスト』を開始する")))
 
 

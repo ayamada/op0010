@@ -25,6 +25,9 @@
 
 (def ^:private heal-threshold (/ 3 4))
 
+;;; NB: 今回は1ファイルなので、project.cljからバージョン情報を取れない…
+(def ^:private app-version "0.1.1")
+
 
 
 ;;;
@@ -406,8 +409,8 @@
       (<! (msg$ (acms (str "上の階に上がる階段がある。\n"
                            "\n"
                            "ここから先には進めないようなので、"
-                           "階段を上がるしかないようだ。")
-                      "階段を上がる")))
+                           "階段を上がるしかないようだ。"))
+                "階段を上がる"))
       (swap! the-game-data update-in [:floor] dec)
       (swap! the-game-data assoc-in [:step] 0)
       (update-title-status!)
@@ -420,6 +423,25 @@
     (go
       (set-img! "stair_down.png")
       (if (<! (choose$ (acms "下の階へと降りる階段がある。")
+                       "階段を降りる"
+                       "無視して前進"))
+        (do
+          (swap! the-game-data update-in [:floor] inc)
+          (swap! the-game-data assoc-in [:step] 0)
+          (update-title-status!)
+          (<! (msg$ (str "階段を降りた。")
+                    "前進")))
+        true))))
+
+(register-game-event!
+  :stair-down-5f$
+  (fn []
+    (go
+      (set-img! "stair_down.png")
+      (if (<! (choose$ (acms (str "下の階へと降りる階段がある。\n"
+                                  "\n"
+                                  "この階段は危険な感じがする！\n"
+                                  "しっかり準備してから降りよう！"))
                        "階段を降りる"
                        "無視して前進"))
         (do
@@ -448,7 +470,6 @@
     (go
       (let [dam (inc (rand-int 2))]
         (vary-hp! (- dam) true)
-        (update-title-status!)
         (<! (msg$ (acms (str "すべってころんだ！\n"
                              dam "のダメージを受けた！"))
                   "痛い！"))
@@ -460,7 +481,6 @@
     (go
       (let [dam (inc (rand-int 10))]
         (vary-hp! (- dam) true)
-        (update-title-status!)
         (<! (msg$ (acms (str "トゲトゲをふんだ！\n"
                              dam "のダメージを受けた！"))
                   "痛い！"))
@@ -525,7 +545,7 @@
             _ (swap! enemy-hp int)
             _ (swap! enemy-atk int)
             ;; 強さに応じた経験値を割り当てる
-            enemy-exp (+ @enemy-hp @enemy-atk)]
+            enemy-exp (+ @enemy-hp (* 2 @enemy-atk))]
         (set-img! filename)
         (set-player-data! :varied-hp? true)
         (go-loop [beginning true]
@@ -579,13 +599,13 @@
 
 
 ;;; TODO: 要バランス調整
-(register-game-event! :enemy-flower-1$ (gen-enemy-event :flower 3 2))
+(register-game-event! :enemy-flower-1$ (gen-enemy-event :flower 3 3))
 (register-game-event! :enemy-hdd-1$ (gen-enemy-event :hdd 10 5))
-(register-game-event! :enemy-tsubo-1$ (gen-enemy-event :tsubo 20 10))
-(register-game-event! :enemy-tsubo2-1$ (gen-enemy-event :tsubo2 20 15))
-(register-game-event! :enemy-konro-1$ (gen-enemy-event :konro 30 15))
-(register-game-event! :enemy-eyes-1$ (gen-enemy-event :eyes 40 20))
-(register-game-event! :enemy-eyes-2$ (gen-enemy-event :eyes 100 50))
+(register-game-event! :enemy-tsubo-1$ (gen-enemy-event :tsubo 20 5))
+(register-game-event! :enemy-tsubo2-1$ (gen-enemy-event :tsubo2 10 15))
+(register-game-event! :enemy-konro-1$ (gen-enemy-event :konro 20 20))
+(register-game-event! :enemy-eyes-1$ (gen-enemy-event :eyes 40 15))
+(register-game-event! :enemy-meat1-1$ (gen-enemy-event :meat1 1 200))
 
 
 
@@ -600,7 +620,7 @@
   1
   ;; ステップ数固定のイベント(あれば)
   {0 :entrance-cell ; 最初の一回しか実行されない
-   100 :enemy-eyes-2$ ; 無限稼ぎ防止用
+   100 :enemy-meat1-1$ ; ボーナス敵
    }
   ;; ランダムイベントのテーブル(rand-nthで選択される)
   [;:goal-1$ ; for debug
@@ -648,7 +668,7 @@
   5
   {;1 :hoge ; TODO: 初回のみフロアの状況描写をするイベントを入れたい
    }
-  [:stair-up-1$ :stair-down-1$
+  [:stair-up-1$ :stair-down-5f$
    :normal-1$ :normal-2$ :normal-3$
    :damage-2$
    :item-orange$ :item-banana$
@@ -661,7 +681,7 @@
    50 :goal-1$
    60 :stair-up-force$ ; ここから先には進めない
    }
-  [;:stair-up-1$ :stair-down-1$
+  [
    :normal-1$ :normal-2$ :normal-3$
    :damage-2$
    :item-orange$ :item-banana$
@@ -694,9 +714,9 @@
                 "\n"
                 "該当記事の本体は " article-url " にあります。\n"
                 "\n"
-                "注意：記事公開期限が迫っていた為、"
-                "ゲームバランスの調整が"
-                "おかしい可能性が非常に高いです。すみません。\n"
+                "* version " app-version " 更新内容 *\n"
+                "全体的なバランス調整\n"
+                "イベントを少し追加\n"
                 "\n")
            "『おしいれクエスト』を開始する")))
 
@@ -729,10 +749,8 @@
 
 
 (defn- do-tweet! []
-  ;; NB: 今回は1ファイルなので、project.cljからバージョン情報を取れない…
-  (let [ver "0.1.0"
-        game-url "http://vnctst.tir.jp/op0010/"
-        text (str "【 #おしいれクエスト version " ver" 】"
+  (let [game-url "http://vnctst.tir.jp/op0010/"
+        text (str "【 #おしいれクエスト version " app-version " 】"
                   " "
                   "脱出に成功！"
                   " ("

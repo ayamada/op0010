@@ -26,7 +26,7 @@
 (def ^:private heal-threshold (/ 3 4))
 
 ;;; NB: 今回は1ファイルなので、project.cljからバージョン情報を取れない…
-(def ^:private app-version "0.1.2")
+(def ^:private app-version "0.1.3")
 
 
 
@@ -183,9 +183,18 @@
             }
            m)))
 
+;;; ボタンが押された時用の隠しhandle。
+;;; js/window.open がpopup blockに引っかからないようにする為だけに用意。
+(def ^:dynamic swal-button-handle nil)
+
 (defn swal$ [m]
   (let [c (async/chan)]
-    (js/swal (make-swal-params m) #(async/put! c (not (not %))))
+    (js/swal (make-swal-params m)
+             (fn [submitted]
+               (let [submitted (boolean submitted)]
+                 (when swal-button-handle
+                   (swal-button-handle submitted))
+                 (async/put! c submitted))))
     c))
 
 (defn msg$ "メッセージ表示" [msg & [label-next]]
@@ -198,6 +207,11 @@
           :confirmButtonText (or label-yes " はい ")
           :cancelButtonText (or label-no "いいえ")}))
 
+(defn close$ "ダイアログを閉じる" []
+  (swal$ {:text ""
+          :confirmButtonText ""
+          :timer 1
+          :closeOnConfirm true}))
 
 
 
@@ -695,6 +709,7 @@
   ;; ステップ数固定のイベント(あれば)
   {0 :entrance-cell ; 最初の一回しか実行されない
    100 :enemy-meat1-1$ ; ボーナス敵
+   101 :stair-down-1$
    }
   ;; ランダムイベントのテーブル(rand-nthで選択される)
   [;:goal-1$ ; for debug
@@ -789,8 +804,9 @@
                 "該当記事の本体は " article-url " にあります。\n"
                 "\n"
                 "* version " app-version " 更新内容 *\n"
-                "イベントを追加\n"
-                "全体的なバランス調整"
+                "tweet時のpopup-block抑制\n"
+                ;"イベントを追加 / "
+                ;"全体的なバランス調整"
                 )
            "『おしいれクエスト』を開始する")))
 
@@ -843,14 +859,12 @@
     (set-img! "oshimai.png")
     (set-title! "完")
     (loop []
-      (if (<! (choose$ "クリアおめでとう！" "tweet" "閉じる"))
-        (do
-          (do-tweet!)
-          (recur))
-        (<! (swal$ {:text "クリアおめでとう！"
-                    :confirmButtonText "閉じる"
-                    :timer 1
-                    :closeOnConfirm true}))))))
+      (if (<! (binding [swal-button-handle #(when %
+                                              (do-tweet!))]
+                (choose$ "クリアおめでとう！" "tweet" "閉じる")))
+        (recur)
+        ;; ダイアログを閉じる
+        (<! (close$))))))
 
 
 ;;;

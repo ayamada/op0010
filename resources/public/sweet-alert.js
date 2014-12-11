@@ -142,7 +142,7 @@
     fireClick = function(node) {
       // Taken from http://www.nonobtrusive.com/2011/11/29/programatically-fire-crossbrowser-click-event-with-javascript/
       // Then fixed for today's Chrome browser.
-      if (MouseEvent) {
+      try {
         // Up-to-date approach
         var mevt = new MouseEvent('click', {
           view: window,
@@ -150,15 +150,17 @@
           cancelable: true
         });
         node.dispatchEvent(mevt);
-      } else if ( document.createEvent ) {
-        // Fallback
-        var evt = document.createEvent('MouseEvents');
-        evt.initEvent('click', false, false);
-        node.dispatchEvent(evt);
-      } else if( document.createEventObject ) {
-        node.fireEvent('onclick') ;
-      } else if (typeof node.onclick === 'function' ) {
-        node.onclick();
+      } catch (e) {
+        if ( document.createEvent ) {
+          // Fallback
+          var evt = document.createEvent('MouseEvents');
+          evt.initEvent('click', false, false);
+          node.dispatchEvent(evt);
+        } else if( document.createEventObject ) {
+          node.fireEvent('onclick') ;
+        } else if (typeof node.onclick === 'function' ) {
+          node.onclick();
+        }
       }
     },
     stopEventPropagation = function(e) {

@@ -26,7 +26,7 @@
 (def ^:private heal-threshold (/ 3 4))
 
 ;;; NB: 今回は1ファイルなので、project.cljからバージョン情報を取れない…
-(def ^:private app-version "0.1.3")
+(def ^:private app-version "0.1.4")
 
 
 
@@ -805,6 +805,7 @@
                 "\n"
                 "* version " app-version " 更新内容 *\n"
                 "tweet時のpopup-block抑制\n"
+                "IE対応を強化\n"
                 ;"イベントを追加 / "
                 ;"全体的なバランス調整"
                 )

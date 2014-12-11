@@ -5,7 +5,7 @@
 
 # License
 
-- 当リポジトリに含まれている `resources/public/sweet-alert.min.js` および `resources/public/sweet-alert.css` は [sweetAlert](https://github.com/t4t5/sweetalert) 由来のものです。この二つのファイルについては[sweetAlertのライセンス](https://github.com/t4t5/sweetalert/blob/master/LICENSE)(MIT)に従ってください。
+- 当リポジトリに含まれている `resources/public/sweet-alert.js` および `resources/public/sweet-alert.css` は [sweetAlert](https://github.com/t4t5/sweetalert) 由来のものです。この二つのファイルについては[sweetAlertのライセンス](https://github.com/t4t5/sweetalert/blob/master/LICENSE)(MIT)に従ってください。
 
 - `resources/public/assets/` 配下にある画像ファイルは[山田](https://github.com/ayamada)が撮影/作成しました。これらのファイルのライセンスは[CC SA 2.0 JP](http://creativecommons.org/licenses/sa/2.0/jp/)とします。
 

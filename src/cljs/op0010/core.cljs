@@ -26,7 +26,7 @@
 (def ^:private heal-threshold (/ 3 4))
 
 ;;; NB: 今回は1ファイルなので、project.cljからバージョン情報を取れない…
-(def ^:private app-version "0.1.4")
+(def ^:private app-version "0.1.5")
 
 
 
@@ -520,6 +520,45 @@
                        ))
             "前進"))))
 
+(let [k :book-1$]
+  (register-game-event!
+    k
+    #(if (flag k)
+       (redraw-dynamic-event$)
+       (go
+         (set-img! "book.jpg")
+         (flag-on! k)
+         (<! (msg$ "何やら怪しげな本が置いてある。"))
+         (<! (msg$ (str "本のページを読んでみた。\n"
+                        "\n"
+                        "ページには\n"
+                        "『ショートカット：[esc] [enter]』\n"
+                        "と書いてあった。\n"
+                        "何のことだろう？")
+                   "前進"))
+         true))))
+
+(let [k :book-2$]
+  (register-game-event!
+    k
+    #(if (flag k)
+       (redraw-dynamic-event$)
+       (go
+         (set-img! "book.jpg")
+         (flag-on! k)
+         (<! (msg$ (str "何やら怪しげな本を発見した。\n"
+                        "本の表紙には、ボタンのたくさんついた機械を、"
+                        "おさるがいじっている絵が描かれている。")))
+         (<! (msg$ (str "本のページを読んでみた。\n"
+                        "\n"
+                        "ページには\n"
+                        "『全自動攻略：[enter]押しっぱなし』\n"
+                        "と書いてあった。"
+                        "")
+                   "前進"))
+         true))))
+
+
 ;;;
 ;;; items
 ;;;
@@ -708,6 +747,7 @@
   1
   ;; ステップ数固定のイベント(あれば)
   {0 :entrance-cell ; 最初の一回しか実行されない
+   5 :book-1$
    100 :enemy-meat1-1$ ; ボーナス敵
    101 :stair-down-1$
    }
@@ -768,6 +808,7 @@
   6
   {1 :landscape-b6f$
    50 :goal-1$
+   59 :book-2$
    60 :stair-up-force$ ; ここから先には進めない
    }
   [
@@ -804,10 +845,8 @@
                 "該当記事の本体は " article-url " にあります。\n"
                 "\n"
                 "* version " app-version " 更新内容 *\n"
-                "tweet時のpopup-block抑制\n"
-                "IE対応を強化\n"
-                ;"イベントを追加 / "
-                ;"全体的なバランス調整"
+                "不具合修正\n"
+                "イベント追加"
                 )
            "『おしいれクエスト』を開始する")))
 
